@@ -1,0 +1,418 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8">
+<title>Stock TCG</title>
+<meta name="robots" content="noindex">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<style>
+  :root { --bg:#f6f7f9; --card:#fff; --tx:#1b1f24; --mute:#6b7280; --bd:#e3e6ea; --ac:#2457d6; --ok:#13803d; --bad:#b42318; }
+  @media (prefers-color-scheme: dark) {
+    :root { --bg:#14161a; --card:#1d2026; --tx:#e8eaed; --mute:#9aa1ab; --bd:#2d3239; --ac:#7aa2ff; --ok:#4cc27a; --bad:#ff7b72; }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font:15px/1.4 system-ui,sans-serif; background:var(--bg); color:var(--tx); }
+  header { position:sticky; top:0; background:var(--card); border-bottom:1px solid var(--bd); padding:8px 12px; display:flex; gap:6px; flex-wrap:wrap; align-items:center; z-index:2; }
+  header b { margin-right:auto; }
+  main { max-width:760px; margin:0 auto; padding:12px 16px 70px; }
+  button, select, input, textarea { font:inherit; color:inherit; background:var(--card); border:1px solid var(--bd); border-radius:8px; padding:8px 10px; }
+  button { cursor:pointer; }
+  button.p { background:var(--ac); color:#fff; border-color:var(--ac); }
+  button.nav.on { border-color:var(--ac); color:var(--ac); font-weight:600; }
+  button:disabled { opacity:.5; }
+  .row { display:flex; gap:8px; flex-wrap:wrap; margin:8px 0; }
+  .row > * { flex:1 1 130px; }
+  .item { background:var(--card); border:1px solid var(--bd); border-radius:10px; padding:10px 12px; margin:8px 0; display:flex; justify-content:space-between; gap:10px; cursor:pointer; }
+  .item small, .mute { color:var(--mute); }
+  .tag { font-size:12px; padding:2px 8px; border-radius:99px; border:1px solid var(--bd); white-space:nowrap; }
+  .ok { color:var(--ok); } .bad { color:var(--bad); }
+  .panel { background:var(--card); border:1px solid var(--bd); border-radius:12px; padding:14px; margin:10px 0; }
+  .grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(150px,1fr)); gap:10px; }
+  .kv { display:grid; grid-template-columns:120px 1fr; gap:4px 10px; }
+  .kv span:nth-child(odd) { color:var(--mute); }
+  label { display:block; font-size:13px; color:var(--mute); }
+  label input, label select, label textarea { width:100%; margin-top:3px; }
+  .qr svg { width:150px; height:150px; background:#fff; padding:6px; border-radius:8px; }
+  .stat b { font-size:20px; display:block; }
+  .big { font-size:18px; padding:12px; }
+  #msg { position:fixed; bottom:12px; left:50%; transform:translateX(-50%); background:var(--tx); color:var(--bg); padding:8px 14px; border-radius:8px; display:none; max-width:90vw; z-index:5; }
+  #print { display:none; }
+  @media print {
+    body > *:not(#print) { display:none !important; }
+    #print { display:flex; flex-wrap:wrap; gap:0; }
+    .wrap { page-break-inside:avoid; break-inside:avoid; color:#000; background:#fff; font-family:system-ui,sans-serif; margin:0 2mm 2mm 0; box-sizing:border-box; outline:0.1mm solid #bbb; }
+    .wrap .face { display:flex; align-items:center; gap:1.5mm; padding:1mm 1.5mm; overflow:hidden; box-sizing:border-box; }
+    .wrap .back { transform:rotate(180deg); border-bottom:0.2mm dashed #888; }
+    .wrap .back svg { flex:none; }
+    .wrap .back .t { font-size:8pt; line-height:1.15; font-weight:700; word-break:break-all; }
+    .wrap .front .n { flex:1; min-width:0; }
+    .wrap .front .n b { display:block; font-size:9pt; line-height:1.1; max-height:2.3em; overflow:hidden; }
+    .wrap .front .n span { display:block; font-size:7pt; margin-top:0.5mm; }
+    .wrap .front .p { flex:none; font-size:15pt; font-weight:800; }
+    @page { margin:5mm; }
+  }
+</style>
+</head>
+<body>
+<header>
+  <b>🃏 Stock TCG</b>
+  <button class="nav" data-v="list">Stock</button>
+  <button class="nav" data-v="sales">Ventas</button>
+  <button class="nav" data-v="form">+ Añadir</button>
+  <button class="nav" data-v="sum">Resumen</button>
+  <button class="nav" data-v="labels">Etiquetas</button>
+</header>
+<main id="view">Cargando…</main>
+<div id="print"></div>
+<div id="msg"></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcode-generator/1.4.4/qrcode.min.js"></script>
+<script>
+const API_URL = 'https://script.google.com/macros/s/AKfycbyBDAHSwoiK96DzQQaO7dS9YIEPJzdWe_SNY7nBItyyByNGDhuKdLzAg418uod27Uvj/exec';
+const INITIAL_ID = (new URLSearchParams(location.search).get('id') || '').replace(/[^A-Za-z0-9.\-]/g, '');
+const BASE_URL = location.origin + location.pathname;
+const CANALES = ['Cardshow', 'Web propia', 'Cardmarket', 'Wallapop/Vinted', 'Otro'];
+const eur = new Intl.NumberFormat('es-ES', { style:'currency', currency:'EUR' });
+const money = v => (v === '' || v == null || isNaN(v)) ? '—' : eur.format(v);
+const today = () => { const d = new Date(); d.setMinutes(d.getMinutes() - d.getTimezoneOffset()); return d.toISOString().slice(0, 10); };
+const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]));
+let PIN = '';
+const run = async (fn, ...a) => {
+  let r;
+  try {
+    const res = await fetch(API_URL, { method: 'POST', headers: { 'Content-Type': 'text/plain;charset=utf-8' }, body: JSON.stringify({ fn, args: [PIN, ...a] }) });
+    r = await res.json();
+  } catch (e) { throw new Error('Sin conexión con la hoja. Reintenta.'); }
+  if (!r.ok) {
+    const msg = String(r.error || 'Error');
+    if (/CODIGO/.test(msg)) { if (!/demasiados/.test(msg)) { PIN = ''; lsSet('pin', ''); } showGate(msg.replace(/^.*CODIGO:\s*/, '')); }
+    throw new Error(msg);
+  }
+  return r.data;
+};
+const $ = s => document.querySelector(s);
+const num = v => { const t = String(v ?? '').trim().replace(',', '.'); return t === '' ? '' : Number(t); };
+const lsGet = k => { try { return localStorage.getItem(k); } catch (e) { return null; } };
+const lsSet = (k, v) => { try { localStorage.setItem(k, v); } catch (e) {} };
+
+let data = { items: [], sales: [] };
+let filt = { q:'', tipo:'', soloStock:true, orden:'reciente' };
+const fdate = d => d ? d.split('-').reverse().join('/') : '';
+
+function toast(t, ms = 3000) { const m = $('#msg'); m.textContent = t; m.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => m.style.display = 'none', ms); }
+function setNav(v) { document.querySelectorAll('.nav').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
+async function reload() { data = await run('getData'); }
+
+function showGate(msg) {
+  $('#view').innerHTML = `<div class="panel" style="max-width:360px;margin:40px auto"><h3 style="margin-top:0">Stock TCG</h3><label>Código de acceso<input id="pin" type="password" inputmode="numeric" autocomplete="off"></label><p class="bad" id="gmsg">${esc(msg || '')}</p><button class="p big" id="pgo" style="width:100%">Entrar</button></div>`;
+  const go1 = async () => {
+    PIN = $('#pin').value.trim(); if (!PIN) return;
+    $('#pgo').disabled = true;
+    try { await reload(); lsSet('pin', PIN); start(); } catch (e) { $('#pgo').disabled = false; }
+  };
+  $('#pgo').onclick = go1; $('#pin').onkeydown = e => { if (e.key === 'Enter') go1(); };
+  setNav('');
+}
+function apply(d) { data = d; }
+
+/* mismas reglas que la hoja */
+const numPart = n => { n = String(n ?? '').trim(); const i = n.indexOf('/'); return i >= 0 ? n.slice(0, i) : n; };
+function previewId(o) {
+  const t = k => String(o[k] ?? '').trim();
+  if (!t('idioma') || !t('set')) return '';
+  if (o.tipo === 'Slab') {
+    if (!t('nota')) return '';
+    const s = t('set').replace(/ /g, '').replace(/\//g, '-').replace(/&/g, '');
+    return ('G-' + t('idioma') + '-' + s + '-' + (numPart(t('numero')) || 'SN') + '-' + t('nota').replace(/,/g, '.')).toUpperCase();
+  }
+  if (!t('numero')) return '';
+  return ('S-' + t('idioma') + '-' + t('set') + '-' + numPart(t('numero'))).toUpperCase();
+}
+
+function qrSvg(id) {
+  const q = qrcode(0, 'M');
+  q.addData(BASE_URL + '?id=' + encodeURIComponent(id));
+  q.make();
+  return q.createSvgTag(4, 2).replace(/ width="\d+"/, '').replace(/ height="\d+"/, '');
+}
+
+/* ---------- LISTA ---------- */
+function viewList() {
+  setNav('list');
+  $('#view').innerHTML = `
+    <div class="row">
+      <input id="q" placeholder="Buscar nombre, set o ID…" value="${esc(filt.q)}" style="flex:2 1 200px">
+      <select id="ft"><option value="">Singles y slabs</option><option value="Single" ${filt.tipo==='Single'?'selected':''}>Singles</option><option value="Slab" ${filt.tipo==='Slab'?'selected':''}>Slabs</option></select>
+      <select id="fo"><option value="reciente">Más recientes</option><option value="nombre">Nombre A-Z</option><option value="pvpd">PVP: mayor a menor</option><option value="pvpa">PVP: menor a mayor</option></select>
+      <label style="display:flex;align-items:center;gap:6px;color:var(--tx)"><input id="fs" type="checkbox" ${filt.soloStock?'checked':''} style="width:auto;margin:0"> Solo con stock</label>
+    </div>
+    <div id="rows"></div>`;
+  const draw = () => {
+    const q = filt.q.toLowerCase();
+    const rows = data.items.filter(o =>
+      (!filt.soloStock || o.stock > 0) && (!filt.tipo || o.tipo === filt.tipo) &&
+      (!q || [o.id, o.nombre, o.set, o.numero].join(' ').toLowerCase().includes(q)))
+      .sort((a, b) => {
+        const pv = x => x.pvp === '' ? -1 : x.pvp;
+        if (filt.orden === 'nombre') return a.nombre.localeCompare(b.nombre);
+        if (filt.orden === 'pvpd') return pv(b) - pv(a);
+        if (filt.orden === 'pvpa') return pv(a) - pv(b);
+        return (b.alta || '').localeCompare(a.alta || '') || b._row - a._row;
+      });
+    $('#rows').innerHTML = rows.length ? rows.map(o => `
+      <div class="item" data-id="${esc(o.id)}">
+        <div><b>${esc(o.nombre)}</b> <small>${esc(o.set)} ${esc(o.numero)}</small><br>
+          <small>${esc(o.id)}${o.tipo === 'Slab' ? ' · ' + esc(o.empresa) + ' ' + esc(o.nota) : ''}</small>${o.alta ? '<br><small>alta ' + fdate(o.alta) + '</small>' : ''}</div>
+        <div style="text-align:right"><small>PVP</small> <b>${money(o.pvp)}</b><br><small>compra ${money(o.compra)}</small><br><span class="tag ${o.stock > 0 ? '' : 'bad'}">${o.stock > 0 ? 'x' + o.stock : 'agotada'}</span></div>
+      </div>`).join('') : '<p class="mute">Sin resultados.</p>';
+    document.querySelectorAll('.item').forEach(el => el.onclick = () => viewCard(el.dataset.id));
+  };
+  $('#q').oninput = e => { filt.q = e.target.value; draw(); };
+  $('#ft').onchange = e => { filt.tipo = e.target.value; draw(); };
+  $('#fo').value = filt.orden;
+  $('#fo').onchange = e => { filt.orden = e.target.value; draw(); };
+  $('#fs').onchange = e => { filt.soloStock = e.target.checked; draw(); };
+  draw();
+}
+
+/* ---------- FICHA (a la que lleva el QR) ---------- */
+let undoArm = null;
+function saleRows(list, withId) {
+  return list.map(s => `
+    <div class="row" style="margin:4px 0;align-items:center">
+      <span style="flex:3 1 200px"><small class="mute">${esc(fdate(s.fecha) || 'sin fecha')} · ${esc(s.canal || 'sin canal')}</small><br>${withId ? '<b>' + esc(s.nombre || s.id) + '</b> · ' : ''}${s.cantidad} × ${money(s.precio)}</span>
+      <span class="${s.beneficio >= 0 ? 'ok' : 'bad'}" style="text-align:right;flex:1 1 70px">${money(s.beneficio)}</span>
+      <button class="undo" data-row="${s.row}" data-id="${esc(s.id)}" style="flex:0 0 auto">Deshacer</button>
+    </div>`).join('');
+}
+function wireUndo(after) {
+  document.querySelectorAll('.undo').forEach(b => b.onclick = async () => {
+    if (undoArm !== b.dataset.row) { undoArm = b.dataset.row; b.textContent = '¿Seguro?'; return; }
+    undoArm = null; b.disabled = true;
+    try { apply(await run('undoSale', Number(b.dataset.row), b.dataset.id)); toast('Venta eliminada'); after(); }
+    catch (e) { toast('Error: ' + e.message, 5000); b.disabled = false; }
+  });
+}
+
+function viewCard(id) {
+  setNav('');
+  const v = $('#view');
+  const o = data.items.find(x => x.id === id);
+  if (!o) { v.innerHTML = `<p>No existe <b>${esc(id)}</b>.</p><button onclick="go('list')">Volver</button>`; return; }
+  const hist = data.sales.filter(s => s.id === id).reverse();
+  const slab = o.tipo === 'Slab';
+  const lastCanal = lsGet('canal') || CANALES[0];
+  v.innerHTML = `
+    <button onclick="go('list')">← Stock</button>
+    <div class="panel">
+      <h2 style="margin:0 0 4px">${esc(o.nombre)}</h2>
+      <div class="mute">${esc(o.id)} · ${slab ? 'Slab' : 'Single'} · <span class="tag ${o.stock > 0 ? 'ok' : 'bad'}">${o.stock > 0 ? 'En stock: ' + o.stock : 'Agotada'}</span></div>
+      <div class="row" style="align-items:center">
+        <div class="kv" style="flex:3 1 260px">
+          <span>Set / Nº</span><span>${esc(o.set)} ${esc(o.numero)}</span>
+          <span>Idioma</span><span>${esc(o.idioma)}</span>
+          ${slab ? `<span>Grado</span><span>${esc(o.empresa)} ${esc(o.nota)}${o.cert ? ' · cert. ' + esc(o.cert) : ''}</span>` : ''}
+          <span>Compra (unid.)</span><span>${money(o.compra)}</span>
+          <span>PVP</span><span><b>${money(o.pvp)}</b> <button id="epvp" style="padding:2px 8px">editar</button></span>
+          ${slab ? `<span>Comparable</span><span>${money(o.comparable)}</span>` : `<span>Cardmarket</span><span>${money(o.cm)}</span>`}
+          <span>Compradas / vendidas</span><span>${o.comprada || 0} / ${o.vendidas || 0}</span>
+          <span>Beneficio acum.</span><span class="${(o.beneficio || 0) >= 0 ? 'ok' : 'bad'}"><b>${money(o.beneficio === '' ? 0 : o.beneficio)}</b></span>
+        </div>
+        <div class="qr" style="flex:1 1 160px">${qrSvg(o.id)}</div>
+      </div>
+      <div class="row"><button id="lbl">Imprimir etiqueta</button><button id="del" class="bad">Eliminar carta</button></div>
+    </div>
+    ${o.stock > 0 ? `
+    <div class="panel"><b>Vender</b>
+      <div class="row">
+        <label>Cantidad<input id="sq" type="number" min="1" max="${o.stock}" value="1" inputmode="numeric"></label>
+        <label>Precio unitario (€)<input id="sp" inputmode="decimal" value="${o.pvp === '' ? '' : o.pvp}"></label>
+      </div>
+      <div class="row">
+        <label>Canal<select id="sc">${CANALES.map(c => `<option ${c === lastCanal ? 'selected' : ''}>${c}</option>`).join('')}</select></label>
+        <label>Fecha<input id="sd" type="date" value="${today()}"></label>
+      </div>
+      <div id="prev" class="mute"></div>
+      <button class="p big" id="sok" style="width:100%;margin-top:8px">Registrar venta</button>
+    </div>` : ''}
+    <div class="panel"><b>Ventas de esta carta</b>${hist.length ? saleRows(hist, false) : '<p class="mute">Aún no hay ventas.</p>'}</div>`;
+  $('#lbl').onclick = () => printLabels([o], 60, 14);
+  $('#epvp').onclick = async () => {
+    const p = prompt('Nuevo PVP (€)', o.pvp);
+    if (p === null) return;
+    const n = num(p);
+    if (n === '' || isNaN(n)) return toast('PVP no válido');
+    try { apply(await run('setPvp', o.id, n)); toast('PVP actualizado'); viewCard(o.id); } catch (e) { toast('Error: ' + e.message, 5000); }
+  };
+  $('#del').onclick = async function () {
+    if (hist.length) return toast('Tiene ventas registradas: deshazlas antes de eliminarla', 5000);
+    if (this.dataset.arm !== '1') { this.dataset.arm = '1'; this.textContent = '¿Seguro? Pulsa otra vez'; return; }
+    this.disabled = true;
+    try { apply(await run('deleteItem', o.id)); toast('Carta eliminada'); viewList(); }
+    catch (e) { toast('Error: ' + e.message, 6000); this.disabled = false; }
+  };
+  wireUndo(() => viewCard(o.id));
+  if (o.stock > 0) {
+    const upd = () => {
+      const q = Number($('#sq').value) || 0, p = num($('#sp').value);
+      $('#prev').innerHTML = (p === '' || isNaN(p) || o.compra === '') ? '' :
+        `Ingreso ${money(q * p)} · beneficio <b class="${p >= o.compra ? 'ok' : 'bad'}">${money((p - o.compra) * q)}</b>`;
+    };
+    $('#sq').oninput = upd; $('#sp').oninput = upd; upd();
+    $('#sok').onclick = async () => {
+      const q = Number($('#sq').value), p = num($('#sp').value);
+      if (!(q > 0) || q > o.stock) return toast('Cantidad no válida (hay ' + o.stock + ')');
+      if (p === '' || isNaN(p)) return toast('Pon un precio válido');
+      $('#sok').disabled = true;
+      lsSet('canal', $('#sc').value);
+      try { apply(await run('sell', o.id, q, p, $('#sc').value, $('#sd').value)); toast('Venta registrada ✔'); viewCard(o.id); }
+      catch (e) { toast('Error: ' + e.message, 6000); $('#sok').disabled = false; }
+    };
+  }
+}
+
+/* ---------- AÑADIR ---------- */
+function viewForm() {
+  setNav('form');
+  $('#view').innerHTML = `
+    <div class="panel"><h3 style="margin-top:0">Añadir carta o slab</h3>
+      <div class="row">
+        <label>Tipo<select id="f_tipo"><option>Single</option><option>Slab</option></select></label>
+        <label>Idioma<input id="f_idioma" list="idi" value="EN"><datalist id="idi"><option>EN<option>JP<option>ES<option>CH<option>KR</datalist></label>
+      </div>
+      <label>Nombre *<input id="f_nombre"></label>
+      <div class="row">
+        <label>Set (código) *<input id="f_set" placeholder="SV2a, SVP…"></label>
+        <label>Nº carta (antes de la /) *<input id="f_numero" placeholder="183 · SN si no tiene"></label>
+      </div>
+      <div class="row slab" style="display:none">
+        <label>Empresa<input id="f_empresa" placeholder="PSA, CGC…"></label>
+        <label>Certificado<input id="f_cert"></label>
+        <label>Nota *<input id="f_nota" placeholder="10, 9.5…"></label>
+      </div>
+      <div class="row">
+        <label class="single">Cantidad<input id="f_cantidad" type="number" min="1" value="1"></label>
+        <label>Compra unitaria (€)<input id="f_compra" inputmode="decimal"></label>
+        <label>PVP (€)<input id="f_pvp" inputmode="decimal"></label>
+      </div>
+      <p id="idp" class="mute"></p>
+      <button class="p big" id="save" style="width:100%">Guardar</button>
+    </div>`;
+  const get = () => {
+    const d = {};
+    ['tipo','idioma','nombre','set','numero','empresa','cert','nota','cantidad','compra','pvp'].forEach(k => d[k] = $('#f_' + k).value.trim());
+    d.compra = num(d.compra); d.pvp = num(d.pvp);
+    return d;
+  };
+  const upd = () => {
+    const d = get(), slab = d.tipo === 'Slab';
+    document.querySelectorAll('.slab').forEach(e => e.style.display = slab ? '' : 'none');
+    document.querySelectorAll('.single').forEach(e => e.style.display = slab ? 'none' : '');
+    const id = previewId(d), ex = data.items.find(x => x.id === id);
+    $('#idp').innerHTML = !id ? 'El ID se calcula al rellenar idioma, set y número (y nota en slabs).' :
+      `ID: <b>${esc(id)}</b>${ex ? ' · <span class="bad">ya existe: se sumarán copias y se promediará el coste</span>' : ''}`;
+  };
+  document.querySelectorAll('#view input, #view select').forEach(e => { e.oninput = upd; e.onchange = upd; });
+  upd();
+  $('#save').onclick = async () => {
+    const d = get();
+    if (!d.nombre || !previewId(d)) return toast('Faltan datos obligatorios');
+    if ((d.compra !== '' && isNaN(d.compra)) || (d.pvp !== '' && isNaN(d.pvp))) return toast('Revisa los precios');
+    if (d.tipo === 'Slab') d.cantidad = 1;
+    $('#save').disabled = true;
+    try {
+      const r = await run('addItem', d);
+      apply(r.data); toast(r.merged ? 'Ya existía: copias sumadas' : 'Añadida ✔'); viewCard(r.id);
+    } catch (e) { toast('Error: ' + e.message, 6000); $('#save').disabled = false; }
+  };
+}
+
+/* ---------- VENTAS ---------- */
+function viewSales() {
+  setNav('sales');
+  const list = data.sales.slice().reverse().slice(0, 60);
+  $('#view').innerHTML = `<div class="panel"><b>Últimas ventas</b>${list.length ? saleRows(list, true) : '<p class="mute">Aún no hay ventas.</p>'}</div>`;
+  wireUndo(viewSales);
+}
+
+/* ---------- RESUMEN ---------- */
+function viewSum() {
+  setNav('sum');
+  const sum = (a, f) => a.reduce((s, o) => s + (Number(f(o)) || 0), 0);
+  const inv = data.items.filter(o => o.stock > 0);
+  const ing = sum(data.sales, s => s.ingreso), gan = sum(data.sales, s => s.beneficio), cos = ing - gan;
+  const stat = (t, v, c = '') => `<div class="panel stat"><span class="mute">${t}</span><b class="${c}">${v}</b></div>`;
+  const group = f => { const m = {}; data.sales.forEach(s => { const k = f(s) || 'Sin dato'; m[k] = m[k] || { n:0, g:0, i:0 }; m[k].n += s.cantidad; m[k].g += s.beneficio; m[k].i += s.ingreso; }); return m; };
+  const block = (title, m) => `<div class="panel"><b>${title}</b>${Object.keys(m).length ? Object.entries(m).sort().map(([k, x]) =>
+    `<div class="row" style="margin:4px 0"><span>${esc(k)} <small class="mute">(${x.n} uds · ${money(x.i)})</small></span><span style="text-align:right" class="${x.g >= 0 ? 'ok' : 'bad'}">${money(x.g)}</span></div>`).join('') : '<p class="mute">Aún no hay ventas.</p>'}</div>`;
+  $('#view').innerHTML = `
+    <div class="grid">
+      ${stat('Unidades en stock', sum(inv, o => o.stock))}
+      ${stat('Invertido en stock', money(sum(inv, o => o.stock * o.compra)))}
+      ${stat('Valor PVP del stock', money(sum(inv, o => o.stock * o.pvp)))}
+      ${stat('Unidades vendidas', sum(data.sales, s => s.cantidad))}
+      ${stat('Ingresos', money(ing))}
+      ${stat('Beneficio total', money(gan), gan >= 0 ? 'ok' : 'bad')}
+      ${stat('Margen s/ coste', cos > 0 ? (gan / cos * 100).toFixed(1) + ' %' : '—')}
+    </div>
+    ${block('Beneficio por canal', group(s => s.canal))}
+    ${block('Beneficio por mes', group(s => s.fecha ? s.fecha.slice(0, 7) : ''))}`;
+}
+
+/* ---------- ETIQUETAS ---------- */
+function viewLabels() {
+  setNav('labels');
+  const cand = data.items.filter(o => o.stock > 0);
+  $('#view').innerHTML = `
+    <div class="panel">
+      <div class="row"><label>Ancho de la tira (mm)<input id="lw" type="number" value="60"></label><label>Alto de cada cara (mm)<input id="lh" type="number" value="14"></label></div>
+      <p class="mute" style="margin:4px 0">Cada etiqueta es una tira (ancho × 2 caras). Arriba va el QR y el ID (detrás de la carta), abajo nombre, set y PVP (delante). Dobla por la línea discontinua sobre el borde superior de la carta/funda.</p>
+      <div class="row"><button id="all">Marcar todas</button><button id="none">Ninguna</button><button class="p" id="go">Imprimir seleccionadas</button></div>
+      <p class="mute" style="margin:4px 0">En el diálogo de impresión desactiva márgenes/encabezados y usa escala 100 %. Prueba antes en papel normal.</p>
+    </div>
+    ${cand.map(o => `<label class="item" style="color:var(--tx);font-size:15px"><span><input type="checkbox" class="ck" value="${esc(o.id)}" style="width:auto"> <b>${esc(o.id)}</b> ${esc(o.nombre)}</span></label>`).join('') || '<p class="mute">No hay artículos en stock.</p>'}`;
+  const ck = () => [...document.querySelectorAll('.ck')];
+  $('#all').onclick = () => ck().forEach(c => c.checked = true);
+  $('#none').onclick = () => ck().forEach(c => c.checked = false);
+  $('#go').onclick = () => {
+    const ids = ck().filter(c => c.checked).map(c => c.value);
+    if (!ids.length) return toast('Selecciona alguna');
+    printLabels(data.items.filter(o => ids.includes(o.id)), Number($('#lw').value) || 60, Number($('#lh').value) || 14);
+  };
+}
+
+function printLabels(list, w, h) {
+  // Etiqueta que abraza la carta: tira de w x (2h). Mitad superior = DETRÁS (QR + ID, girada 180°),
+  // mitad inferior = DELANTE (nombre, set, PVP). Se dobla por la línea discontinua sobre el borde superior.
+  const qs = h - 2.5;
+  const pvp = o => (o.pvp === '' || o.pvp == null) ? '' : (Number(o.pvp) % 1 ? Number(o.pvp).toFixed(2) : Number(o.pvp)) + ' €';
+  $('#print').innerHTML = list.map(o => `
+    <div class="wrap" style="width:${w}mm">
+      <div class="face back" style="height:${h}mm">
+        <div style="width:${qs}mm;height:${qs}mm;flex:none">${qrSvg(o.id).replace('<svg', '<svg style="width:100%;height:100%"')}</div>
+        <div class="t">${esc(o.id)}</div>
+      </div>
+      <div class="face front" style="height:${h}mm">
+        <div class="n"><b>${esc(String(o.nombre).slice(0, 45))}</b><span>${esc([o.set, o.idioma, o.tipo === 'Slab' ? o.empresa + ' ' + o.nota : ''].filter(Boolean).join(' · '))}</span></div>
+        <div class="p">${esc(pvp(o))}</div>
+      </div>
+    </div>`).join('');
+  setTimeout(() => window.print(), 150);
+}
+
+/* ---------- ROUTER ---------- */
+function go(v) {
+  ({ list: viewList, form: viewForm, sales: viewSales, sum: viewSum, labels: viewLabels })[v]();
+}
+document.querySelectorAll('.nav').forEach(b => b.onclick = () => go(b.dataset.v));
+
+function start() { if (INITIAL_ID) viewCard(INITIAL_ID); else viewList(); }
+(async () => {
+  PIN = lsGet('pin') || '';
+  if (!PIN) return showGate('');
+  try { await reload(); } catch (e) { return; }
+  start();
+})();
+</script>
+</body>
+</html>
