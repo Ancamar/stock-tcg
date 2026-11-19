@@ -44,9 +44,9 @@
     .wrap .face { display:flex; box-sizing:border-box; overflow:hidden; padding:1mm 1.2mm; }
     .wrap .back { padding:0; }
     .wrap .front { flex-direction:column; justify-content:space-between; }
-    .wrap .front b { display:block; font-size:8.5pt; line-height:1.1; max-height:2.2em; overflow:hidden; }
-    .wrap .front span { display:block; font-size:6.5pt; line-height:1.15; max-height:3.5em; overflow:hidden; margin-top:0.4mm; }
-    .wrap .front .p { font-size:12.5pt; font-weight:800; text-align:right; line-height:1; }
+    .wrap .front b { display:block; font-size:calc(8.5pt * var(--k, 1)); line-height:1.1; max-height:2.2em; overflow:hidden; }
+    .wrap .front span { display:block; font-size:calc(6.5pt * var(--k, 1)); line-height:1.15; max-height:3.5em; overflow:hidden; margin-top:0.4mm; }
+    .wrap .front .p { font-size:calc(12.5pt * var(--k, 1)); font-weight:800; text-align:right; line-height:1; }
     .wrap .back { align-items:center; justify-content:center; border-left:0.2mm dashed #888; }
     .wrap .back svg { flex:none; }
     .wrap .back .t { flex:1; min-width:0; font-size:5.5pt; line-height:1.15; font-weight:700; word-break:break-all; }
@@ -237,7 +237,7 @@ function viewCard(id) {
       <button class="p big" id="sok" style="width:100%;margin-top:8px">Registrar venta</button>
     </div>` : ''}
     <div class="panel"><b>Ventas de esta carta</b>${hist.length ? saleRows(hist, false) : '<p class="mute">Aún no hay ventas.</p>'}</div>`;
-  $('#lbl').onclick = () => printLabels([o], 22, 22);
+  $('#lbl').onclick = () => printLabels([o]);
   $('#epvp').onclick = async () => {
     const p = prompt('Nuevo PVP (€)', o.pvp);
     if (p === null) return;
@@ -361,24 +361,50 @@ function viewSum() {
 }
 
 /* ---------- ETIQUETAS ---------- */
+const LBL_PRESETS = {
+  compacta: { n: 'Compacta · 22 × 22 mm por cara', w: 22, h: 22, k: 1 },
+  media: { n: 'Media · 28 × 20 mm por cara', w: 28, h: 20, k: 1.2 },
+  grande: { n: 'Grande · 40 × 28 mm por cara', w: 40, h: 28, k: 1.7 }
+};
+function labelCfg() {
+  const p = lsGet('lblPreset') || 'compacta';
+  if (p === 'custom') {
+    const w = Number(lsGet('lblW')) || 22, h = Number(lsGet('lblH')) || 22;
+    return { w, h, k: Math.max(0.6, Math.min(w, h) / 22) };
+  }
+  return LBL_PRESETS[p] || LBL_PRESETS.compacta;
+}
 function viewLabels() {
   setNav('labels');
   const cand = data.items.filter(o => o.stock > 0);
   $('#view').innerHTML = `
     <div class="panel">
-      <div class="row"><label>Ancho de cada cara (mm)<input id="lw" type="number" value="22"></label><label>Alto (mm)<input id="lh" type="number" value="22"></label></div>
-      <p class="mute" style="margin:4px 0">Cada etiqueta son dos caras lado a lado. Izquierda = delante (nombre, set y PVP); derecha = detrás (solo el QR). Dobla por la línea discontinua vertical sobre el borde lateral de la carta o funda.</p>
+      <label>Tamaño de la etiqueta<select id="lp">${Object.keys(LBL_PRESETS).map(k => `<option value="${k}">${LBL_PRESETS[k].n}</option>`).join('')}<option value="custom">Personalizada…</option></select></label>
+      <div class="row" id="lcus" style="display:none"><label>Ancho de cada cara (mm)<input id="lw" type="number" value="22"></label><label>Alto (mm)<input id="lh" type="number" value="22"></label></div>
+      <p class="mute" id="ldesc" style="margin:4px 0"></p>
       <div class="row"><button id="all">Marcar todas</button><button id="none">Ninguna</button><button class="p" id="go">Imprimir seleccionadas</button></div>
       <p class="mute" style="margin:4px 0">En el diálogo de impresión desactiva márgenes/encabezados y usa escala 100 %. Prueba antes en papel normal.</p>
     </div>
     ${cand.map(o => `<label class="item" style="color:var(--tx);font-size:15px"><span><input type="checkbox" class="ck" value="${esc(o.id)}" style="width:auto"> <b>${esc(o.id)}</b> ${esc(o.nombre)}</span></label>`).join('') || '<p class="mute">No hay artículos en stock.</p>'}`;
+  const lp = $('#lp'), cfgNow = labelCfg();
+  lp.value = lsGet('lblPreset') && (LBL_PRESETS[lsGet('lblPreset')] || lsGet('lblPreset') === 'custom') ? lsGet('lblPreset') : 'compacta';
+  $('#lw').value = cfgNow.w; $('#lh').value = cfgNow.h;
+  const refresh = () => {
+    const c = labelCfg();
+    $('#lcus').style.display = lp.value === 'custom' ? '' : 'none';
+    $('#ldesc').textContent = 'Tamaño total: ' + (2 * c.w) + ' × ' + c.h + ' mm (dos caras de ' + c.w + ' × ' + c.h + '). Izquierda = delante (nombre, set y PVP); derecha = detrás (solo el QR). Dobla por la línea discontinua vertical sobre el borde lateral.';
+  };
+  lp.onchange = () => { lsSet('lblPreset', lp.value); refresh(); };
+  $('#lw').oninput = () => { lsSet('lblW', $('#lw').value); refresh(); };
+  $('#lh').oninput = () => { lsSet('lblH', $('#lh').value); refresh(); };
+  refresh();
   const ck = () => [...document.querySelectorAll('.ck')];
   $('#all').onclick = () => ck().forEach(c => c.checked = true);
   $('#none').onclick = () => ck().forEach(c => c.checked = false);
   $('#go').onclick = () => {
     const ids = ck().filter(c => c.checked).map(c => c.value);
     if (!ids.length) return toast('Selecciona alguna');
-    printLabels(data.items.filter(o => ids.includes(o.id)), Number($('#lw').value) || 22, Number($('#lh').value) || 22);
+    printLabels(data.items.filter(o => ids.includes(o.id)));
   };
 }
 
@@ -391,13 +417,14 @@ const setName = (c, idioma) => {
   const pre = sr && n.toLowerCase().indexOf(sr.toLowerCase()) !== 0 ? sr + ' ' : '';
   return pre + n + (y ? ' (' + y + ')' : '');
 };
-function printLabels(list, w, h) {
+function printLabels(list, w, h, k) {
+  if (!w) { const c = labelCfg(); w = c.w; h = c.h; k = c.k; }
   // Etiqueta que abraza el lateral: dos caras lado a lado (w x h cada una) con doblez vertical.
   // Izquierda = DELANTE (nombre, set, PVP). Derecha = DETRÁS (solo QR).
   const qs = Math.min(h, w) - 1;
   const pvp = o => (o.pvp === '' || o.pvp == null) ? '' : (Number(o.pvp) % 1 ? Number(o.pvp).toFixed(2) : Number(o.pvp)) + ' €';
   $('#print').innerHTML = list.map(o => `
-    <div class="wrap" style="width:${2 * w}mm;height:${h}mm">
+    <div class="wrap" style="width:${2 * w}mm;height:${h}mm;--k:${k || 1}">
       <div class="face front" style="width:${w}mm;height:${h}mm">
         <div><b>${esc(String(o.nombre).slice(0, 45))}</b><span>${esc([setName(o.set, o.idioma), o.idioma, o.tipo === 'Slab' ? o.empresa + ' ' + o.nota : ''].filter(Boolean).join(' · '))}</span></div>
         <div class="p">${esc(pvp(o))}</div>
