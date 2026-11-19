@@ -362,14 +362,14 @@ function viewSum() {
 
 /* ---------- ETIQUETAS ---------- */
 const LBL_PRESETS = {
-  compacta: { n: 'Compacta · 22 × 22 mm por cara', w: 22, h: 22, k: 1 },
+  compacta: { n: 'Compacta · 22 × 18 mm por cara', w: 22, h: 18, k: 0.9 },
   media: { n: 'Media · 28 × 20 mm por cara', w: 28, h: 20, k: 1.2 },
   grande: { n: 'Grande · 40 × 28 mm por cara', w: 40, h: 28, k: 1.7 }
 };
 function labelCfg() {
   const p = lsGet('lblPreset') || 'compacta';
   if (p === 'custom') {
-    const w = Number(lsGet('lblW')) || 22, h = Number(lsGet('lblH')) || 22;
+    const w = Number(lsGet('lblW')) || 22, h = Number(lsGet('lblH')) || 18;
     return { w, h, k: Math.max(0.6, Math.min(w, h) / 22) };
   }
   return LBL_PRESETS[p] || LBL_PRESETS.compacta;
@@ -380,7 +380,7 @@ function viewLabels() {
   $('#view').innerHTML = `
     <div class="panel">
       <label>Tamaño de la etiqueta<select id="lp">${Object.keys(LBL_PRESETS).map(k => `<option value="${k}">${LBL_PRESETS[k].n}</option>`).join('')}<option value="custom">Personalizada…</option></select></label>
-      <div class="row" id="lcus" style="display:none"><label>Ancho de cada cara (mm)<input id="lw" type="number" value="22"></label><label>Alto (mm)<input id="lh" type="number" value="22"></label></div>
+      <div class="row" id="lcus" style="display:none"><label>Ancho de cada cara (mm)<input id="lw" type="number" value="22"></label><label>Alto (mm)<input id="lh" type="number" value="18"></label></div>
       <p class="mute" id="ldesc" style="margin:4px 0"></p>
       <div class="row"><button id="all">Marcar todas</button><button id="none">Ninguna</button><button class="p" id="go">Imprimir seleccionadas</button></div>
       <p class="mute" style="margin:4px 0">En el diálogo de impresión desactiva márgenes/encabezados y usa escala 100 %. Prueba antes en papel normal.</p>
