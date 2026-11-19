@@ -385,8 +385,10 @@ const SET_LANG = { EN: 'EN', ES: 'EN', JP: 'JP', KR: 'KR', CH: 'CH' };
 const setName = (c, idioma) => {
   const k = String(c).toUpperCase(), L = SET_LANG[String(idioma || '').toUpperCase()] || '';
   const look = m => m && ((L && m[L + '|' + k]) || (L === 'KR' && m['JP|' + k]) || m[k]);
-  const n = look(data.sets), y = look(data.setYears);
-  return n ? n + (y ? ' (' + y + ')' : '') : c;
+  const n = look(data.sets), y = look(data.setYears), sr = look(data.setSeries);
+  if (!n) return c;
+  const pre = sr && n.toLowerCase().indexOf(sr.toLowerCase()) !== 0 ? sr + ' ' : '';
+  return pre + n + (y ? ' (' + y + ')' : '');
 };
 function printLabels(list, w, h) {
   // Etiqueta que abraza la carta: tira de w x (2h). Mitad superior = DETRÁS (QR + ID, girada 180°),
