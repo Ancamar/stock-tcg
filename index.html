@@ -46,7 +46,7 @@
     .wrap .front b { display:block; font-size:8pt; line-height:1.1; max-height:2.2em; overflow:hidden; }
     .wrap .front span { display:block; font-size:6pt; line-height:1.15; max-height:2.3em; overflow:hidden; margin-top:0.4mm; }
     .wrap .front .p { font-size:11pt; font-weight:800; text-align:right; line-height:1; }
-    .wrap .back { flex-direction:row; align-items:center; gap:1mm; border-left:0.2mm dashed #888; }
+    .wrap .back { align-items:center; justify-content:center; border-left:0.2mm dashed #888; }
     .wrap .back svg { flex:none; }
     .wrap .back .t { flex:1; min-width:0; font-size:5.5pt; line-height:1.15; font-weight:700; word-break:break-all; }
     @page { margin:5mm; }
@@ -366,7 +366,7 @@ function viewLabels() {
   $('#view').innerHTML = `
     <div class="panel">
       <div class="row"><label>Ancho de cada cara (mm)<input id="lw" type="number" value="28"></label><label>Alto (mm)<input id="lh" type="number" value="18"></label></div>
-      <p class="mute" style="margin:4px 0">Cada etiqueta son dos caras lado a lado. Izquierda = delante (nombre, set y PVP); derecha = detrás (QR e ID). Dobla por la línea discontinua vertical sobre el borde lateral de la carta o funda.</p>
+      <p class="mute" style="margin:4px 0">Cada etiqueta son dos caras lado a lado. Izquierda = delante (nombre, set y PVP); derecha = detrás (solo el QR). Dobla por la línea discontinua vertical sobre el borde lateral de la carta o funda.</p>
       <div class="row"><button id="all">Marcar todas</button><button id="none">Ninguna</button><button class="p" id="go">Imprimir seleccionadas</button></div>
       <p class="mute" style="margin:4px 0">En el diálogo de impresión desactiva márgenes/encabezados y usa escala 100 %. Prueba antes en papel normal.</p>
     </div>
@@ -392,8 +392,8 @@ const setName = (c, idioma) => {
 };
 function printLabels(list, w, h) {
   // Etiqueta que abraza el lateral: dos caras lado a lado (w x h cada una) con doblez vertical.
-  // Izquierda = DELANTE (nombre, set, PVP). Derecha = DETRÁS (QR + ID).
-  const qs = Math.min(h - 3, w * 0.55);
+  // Izquierda = DELANTE (nombre, set, PVP). Derecha = DETRÁS (solo QR).
+  const qs = Math.min(h - 3, w - 3);
   const pvp = o => (o.pvp === '' || o.pvp == null) ? '' : (Number(o.pvp) % 1 ? Number(o.pvp).toFixed(2) : Number(o.pvp)) + ' €';
   $('#print').innerHTML = list.map(o => `
     <div class="wrap" style="width:${2 * w}mm;height:${h}mm">
@@ -403,7 +403,6 @@ function printLabels(list, w, h) {
       </div>
       <div class="face back" style="width:${w}mm;height:${h}mm">
         <div style="width:${qs}mm;height:${qs}mm;flex:none">${qrSvg(o.id).replace('<svg', '<svg style="width:100%;height:100%"')}</div>
-        <div class="t">${esc(o.id)}</div>
       </div>
     </div>`).join('');
   setTimeout(() => window.print(), 150);
