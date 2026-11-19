@@ -381,6 +381,7 @@ function viewLabels() {
   };
 }
 
+const setName = c => (data.sets && data.sets[String(c).toUpperCase()]) || c;
 function printLabels(list, w, h) {
   // Etiqueta que abraza la carta: tira de w x (2h). Mitad superior = DETRÁS (QR + ID, girada 180°),
   // mitad inferior = DELANTE (nombre, set, PVP). Se dobla por la línea discontinua sobre el borde superior.
@@ -393,7 +394,7 @@ function printLabels(list, w, h) {
         <div class="t">${esc(o.id)}</div>
       </div>
       <div class="face front" style="height:${h}mm">
-        <div class="n"><b>${esc(String(o.nombre).slice(0, 45))}</b><span>${esc([o.set, o.idioma, o.tipo === 'Slab' ? o.empresa + ' ' + o.nota : ''].filter(Boolean).join(' · '))}</span></div>
+        <div class="n"><b>${esc(String(o.nombre).slice(0, 45))}</b><span>${esc([setName(o.set), o.idioma, o.tipo === 'Slab' ? o.empresa + ' ' + o.nota : ''].filter(Boolean).join(' · '))}</span></div>
         <div class="p">${esc(pvp(o))}</div>
       </div>
     </div>`).join('');
