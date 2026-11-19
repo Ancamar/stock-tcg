@@ -101,7 +101,7 @@ const fdate = d => d ? d.split('-').reverse().join('/') : '';
 
 function toast(t, ms = 3000) { const m = $('#msg'); m.textContent = t; m.style.display = 'block'; clearTimeout(toast.t); toast.t = setTimeout(() => m.style.display = 'none', ms); }
 function setNav(v) { document.querySelectorAll('.nav').forEach(b => b.classList.toggle('on', b.dataset.v === v)); }
-async function reload() { data = await run('getData'); }
+async function reload() { data = await run('getData'); lsSet('cache', JSON.stringify(data)); }
 
 function showGate(msg) {
   $('#view').innerHTML = `<div class="panel" style="max-width:360px;margin:40px auto"><h3 style="margin-top:0">Stock TCG</h3><label>Código de acceso<input id="pin" type="password" inputmode="numeric" autocomplete="off"></label><p class="bad" id="gmsg">${esc(msg || '')}</p><button class="p big" id="pgo" style="width:100%">Entrar</button></div>`;
@@ -113,7 +113,7 @@ function showGate(msg) {
   $('#pgo').onclick = go1; $('#pin').onkeydown = e => { if (e.key === 'Enter') go1(); };
   setNav('');
 }
-function apply(d) { data = d; }
+function apply(d) { data = d; lsSet('cache', JSON.stringify(d)); }
 
 /* mismas reglas que la hoja */
 const numPart = n => { n = String(n ?? '').trim(); const i = n.indexOf('/'); return i >= 0 ? n.slice(0, i) : n; };
@@ -401,15 +401,33 @@ function printLabels(list, w, h) {
 }
 
 /* ---------- ROUTER ---------- */
-function go(v) {
-  ({ list: viewList, form: viewForm, sales: viewSales, sum: viewSum, labels: viewLabels })[v]();
-}
 document.querySelectorAll('.nav').forEach(b => b.onclick = () => go(b.dataset.v));
 
+let full = Promise.resolve();   // carga completa en segundo plano
 function start() { if (INITIAL_ID) viewCard(INITIAL_ID); else viewList(); }
+async function go(v) { await full; ({ list: viewList, form: viewForm, sales: viewSales, sum: viewSum, labels: viewLabels })[v](); }
 (async () => {
   PIN = lsGet('pin') || '';
   if (!PIN) return showGate('');
+  // Copia local de la última carga: se pinta al instante y luego se actualiza con la hoja.
+  let cached = null;
+  try { cached = JSON.parse(lsGet('cache') || 'null'); } catch (e) {}
+  if (cached && cached.items) {
+    data = cached;
+    if (INITIAL_ID && data.items.some(x => x.id === INITIAL_ID)) {
+      viewCard(INITIAL_ID);
+      const note = document.createElement('p'); note.id = 'upd'; note.className = 'mute'; note.textContent = 'Actualizando desde la hoja…';
+      $('#view').prepend(note);
+    } else start();
+    const before = JSON.stringify(data.items.find(x => x.id === INITIAL_ID) || null) + JSON.stringify(data.sales.filter(s => s.id === INITIAL_ID));
+    full = reload().then(() => {
+      const n = $('#upd'); if (n) n.remove();
+      const after = JSON.stringify(data.items.find(x => x.id === INITIAL_ID) || null) + JSON.stringify(data.sales.filter(s => s.id === INITIAL_ID));
+      // Solo repinta la ficha si la hoja cambió y el usuario no ha tocado nada todavía.
+      if (INITIAL_ID && n && before !== after) viewCard(INITIAL_ID);
+    }).catch(() => { const n = $('#upd'); if (n) n.textContent = 'Sin conexión con la hoja: datos de la última vez.'; });
+    return;
+  }
   try { await reload(); } catch (e) { return; }
   start();
 })();
