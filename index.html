@@ -381,8 +381,11 @@ function viewLabels() {
   };
 }
 
-const setName = c => {
-  const k = String(c).toUpperCase(), n = data.sets && data.sets[k], y = data.setYears && data.setYears[k];
+const SET_LANG = { EN: 'EN', ES: 'EN', JP: 'JP', KR: 'KR', CH: 'CH' };
+const setName = (c, idioma) => {
+  const k = String(c).toUpperCase(), L = SET_LANG[String(idioma || '').toUpperCase()] || '';
+  const look = m => m && ((L && m[L + '|' + k]) || (L === 'KR' && m['JP|' + k]) || m[k]);
+  const n = look(data.sets), y = look(data.setYears);
   return n ? n + (y ? ' (' + y + ')' : '') : c;
 };
 function printLabels(list, w, h) {
@@ -397,7 +400,7 @@ function printLabels(list, w, h) {
         <div class="t">${esc(o.id)}</div>
       </div>
       <div class="face front" style="height:${h}mm">
-        <div class="n"><b>${esc(String(o.nombre).slice(0, 45))}</b><span>${esc([setName(o.set), o.idioma, o.tipo === 'Slab' ? o.empresa + ' ' + o.nota : ''].filter(Boolean).join(' · '))}</span></div>
+        <div class="n"><b>${esc(String(o.nombre).slice(0, 45))}</b><span>${esc([setName(o.set, o.idioma), o.idioma, o.tipo === 'Slab' ? o.empresa + ' ' + o.nota : ''].filter(Boolean).join(' · '))}</span></div>
         <div class="p">${esc(pvp(o))}</div>
       </div>
     </div>`).join('');
