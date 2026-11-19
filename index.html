@@ -40,15 +40,15 @@
   @media print {
     body > *:not(#print) { display:none !important; }
     #print { display:flex; flex-wrap:wrap; gap:0; }
-    .wrap { page-break-inside:avoid; break-inside:avoid; color:#000; background:#fff; font-family:system-ui,sans-serif; margin:0 2mm 2mm 0; box-sizing:border-box; outline:0.1mm solid #bbb; }
-    .wrap .face { display:flex; align-items:center; gap:1.5mm; padding:1mm 1.5mm; overflow:hidden; box-sizing:border-box; }
-    .wrap .back { transform:rotate(180deg); border-top:0.2mm dashed #888; }
+    .wrap { display:flex; flex-direction:row; page-break-inside:avoid; break-inside:avoid; color:#000; background:#fff; font-family:system-ui,sans-serif; margin:0 2mm 2mm 0; box-sizing:border-box; outline:0.1mm solid #bbb; }
+    .wrap .face { display:flex; box-sizing:border-box; overflow:hidden; padding:1mm 1.3mm; }
+    .wrap .front { flex-direction:column; justify-content:space-between; }
+    .wrap .front b { display:block; font-size:8pt; line-height:1.1; max-height:2.2em; overflow:hidden; }
+    .wrap .front span { display:block; font-size:6pt; line-height:1.15; max-height:2.3em; overflow:hidden; margin-top:0.4mm; }
+    .wrap .front .p { font-size:11pt; font-weight:800; text-align:right; line-height:1; }
+    .wrap .back { flex-direction:row; align-items:center; gap:1mm; border-left:0.2mm dashed #888; }
     .wrap .back svg { flex:none; }
-    .wrap .back .t { font-size:8pt; line-height:1.15; font-weight:700; word-break:break-all; }
-    .wrap .front .n { flex:1; min-width:0; }
-    .wrap .front .n b { display:block; font-size:9pt; line-height:1.1; max-height:2.3em; overflow:hidden; }
-    .wrap .front .n span { display:block; font-size:7pt; margin-top:0.5mm; }
-    .wrap .front .p { flex:none; font-size:15pt; font-weight:800; }
+    .wrap .back .t { flex:1; min-width:0; font-size:5.5pt; line-height:1.15; font-weight:700; word-break:break-all; }
     @page { margin:5mm; }
   }
 </style>
@@ -236,7 +236,7 @@ function viewCard(id) {
       <button class="p big" id="sok" style="width:100%;margin-top:8px">Registrar venta</button>
     </div>` : ''}
     <div class="panel"><b>Ventas de esta carta</b>${hist.length ? saleRows(hist, false) : '<p class="mute">Aún no hay ventas.</p>'}</div>`;
-  $('#lbl').onclick = () => printLabels([o], 60, 14);
+  $('#lbl').onclick = () => printLabels([o], 28, 18);
   $('#epvp').onclick = async () => {
     const p = prompt('Nuevo PVP (€)', o.pvp);
     if (p === null) return;
@@ -365,8 +365,8 @@ function viewLabels() {
   const cand = data.items.filter(o => o.stock > 0);
   $('#view').innerHTML = `
     <div class="panel">
-      <div class="row"><label>Ancho de la tira (mm)<input id="lw" type="number" value="60"></label><label>Alto de cada cara (mm)<input id="lh" type="number" value="14"></label></div>
-      <p class="mute" style="margin:4px 0">Cada etiqueta es una tira (ancho × 2 caras). Arriba va el QR y el ID (detrás de la carta), abajo nombre, set y PVP (delante). Dobla por la línea discontinua sobre el borde superior de la carta/funda.</p>
+      <div class="row"><label>Ancho de cada cara (mm)<input id="lw" type="number" value="28"></label><label>Alto (mm)<input id="lh" type="number" value="18"></label></div>
+      <p class="mute" style="margin:4px 0">Cada etiqueta son dos caras lado a lado. Izquierda = delante (nombre, set y PVP); derecha = detrás (QR e ID). Dobla por la línea discontinua vertical sobre el borde lateral de la carta o funda.</p>
       <div class="row"><button id="all">Marcar todas</button><button id="none">Ninguna</button><button class="p" id="go">Imprimir seleccionadas</button></div>
       <p class="mute" style="margin:4px 0">En el diálogo de impresión desactiva márgenes/encabezados y usa escala 100 %. Prueba antes en papel normal.</p>
     </div>
@@ -377,7 +377,7 @@ function viewLabels() {
   $('#go').onclick = () => {
     const ids = ck().filter(c => c.checked).map(c => c.value);
     if (!ids.length) return toast('Selecciona alguna');
-    printLabels(data.items.filter(o => ids.includes(o.id)), Number($('#lw').value) || 60, Number($('#lh').value) || 14);
+    printLabels(data.items.filter(o => ids.includes(o.id)), Number($('#lw').value) || 28, Number($('#lh').value) || 18);
   };
 }
 
@@ -391,19 +391,19 @@ const setName = (c, idioma) => {
   return pre + n + (y ? ' (' + y + ')' : '');
 };
 function printLabels(list, w, h) {
-  // Etiqueta que abraza la carta: tira de w x (2h). Mitad superior = DETRÁS (QR + ID, girada 180°),
-  // mitad inferior = DELANTE (nombre, set, PVP). Se dobla por la línea discontinua sobre el borde superior.
-  const qs = h - 2.5;
+  // Etiqueta que abraza el lateral: dos caras lado a lado (w x h cada una) con doblez vertical.
+  // Izquierda = DELANTE (nombre, set, PVP). Derecha = DETRÁS (QR + ID).
+  const qs = Math.min(h - 3, w * 0.55);
   const pvp = o => (o.pvp === '' || o.pvp == null) ? '' : (Number(o.pvp) % 1 ? Number(o.pvp).toFixed(2) : Number(o.pvp)) + ' €';
   $('#print').innerHTML = list.map(o => `
-    <div class="wrap" style="width:${w}mm">
-      <div class="face back" style="height:${h}mm">
+    <div class="wrap" style="width:${2 * w}mm;height:${h}mm">
+      <div class="face front" style="width:${w}mm;height:${h}mm">
+        <div><b>${esc(String(o.nombre).slice(0, 45))}</b><span>${esc([setName(o.set, o.idioma), o.idioma, o.tipo === 'Slab' ? o.empresa + ' ' + o.nota : ''].filter(Boolean).join(' · '))}</span></div>
+        <div class="p">${esc(pvp(o))}</div>
+      </div>
+      <div class="face back" style="width:${w}mm;height:${h}mm">
         <div style="width:${qs}mm;height:${qs}mm;flex:none">${qrSvg(o.id).replace('<svg', '<svg style="width:100%;height:100%"')}</div>
         <div class="t">${esc(o.id)}</div>
-      </div>
-      <div class="face front" style="height:${h}mm">
-        <div class="n"><b>${esc(String(o.nombre).slice(0, 45))}</b><span>${esc([setName(o.set, o.idioma), o.idioma, o.tipo === 'Slab' ? o.empresa + ' ' + o.nota : ''].filter(Boolean).join(' · '))}</span></div>
-        <div class="p">${esc(pvp(o))}</div>
       </div>
     </div>`).join('');
   setTimeout(() => window.print(), 150);
