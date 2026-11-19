@@ -381,7 +381,10 @@ function viewLabels() {
   };
 }
 
-const setName = c => (data.sets && data.sets[String(c).toUpperCase()]) || c;
+const setName = c => {
+  const k = String(c).toUpperCase(), n = data.sets && data.sets[k], y = data.setYears && data.setYears[k];
+  return n ? n + (y ? ' (' + y + ')' : '') : c;
+};
 function printLabels(list, w, h) {
   // Etiqueta que abraza la carta: tira de w x (2h). Mitad superior = DETRÁS (QR + ID, girada 180°),
   // mitad inferior = DELANTE (nombre, set, PVP). Se dobla por la línea discontinua sobre el borde superior.
