@@ -41,11 +41,12 @@
     body > *:not(#print) { display:none !important; }
     #print { display:flex; flex-wrap:wrap; gap:0; }
     .wrap { display:flex; flex-direction:row; page-break-inside:avoid; break-inside:avoid; color:#000; background:#fff; font-family:system-ui,sans-serif; margin:0 2mm 2mm 0; box-sizing:border-box; outline:0.1mm solid #bbb; }
-    .wrap .face { display:flex; box-sizing:border-box; overflow:hidden; padding:1mm 1.3mm; }
+    .wrap .face { display:flex; box-sizing:border-box; overflow:hidden; padding:0.8mm 1mm; }
+    .wrap .back { padding:0; }
     .wrap .front { flex-direction:column; justify-content:space-between; }
-    .wrap .front b { display:block; font-size:8pt; line-height:1.1; max-height:2.2em; overflow:hidden; }
-    .wrap .front span { display:block; font-size:6pt; line-height:1.15; max-height:2.3em; overflow:hidden; margin-top:0.4mm; }
-    .wrap .front .p { font-size:11pt; font-weight:800; text-align:right; line-height:1; }
+    .wrap .front b { display:block; font-size:7pt; line-height:1.1; max-height:2.2em; overflow:hidden; }
+    .wrap .front span { display:block; font-size:5.5pt; line-height:1.15; max-height:3.5em; overflow:hidden; margin-top:0.4mm; }
+    .wrap .front .p { font-size:10pt; font-weight:800; text-align:right; line-height:1; }
     .wrap .back { align-items:center; justify-content:center; border-left:0.2mm dashed #888; }
     .wrap .back svg { flex:none; }
     .wrap .back .t { flex:1; min-width:0; font-size:5.5pt; line-height:1.15; font-weight:700; word-break:break-all; }
@@ -236,7 +237,7 @@ function viewCard(id) {
       <button class="p big" id="sok" style="width:100%;margin-top:8px">Registrar venta</button>
     </div>` : ''}
     <div class="panel"><b>Ventas de esta carta</b>${hist.length ? saleRows(hist, false) : '<p class="mute">Aún no hay ventas.</p>'}</div>`;
-  $('#lbl').onclick = () => printLabels([o], 28, 18);
+  $('#lbl').onclick = () => printLabels([o], 22, 22);
   $('#epvp').onclick = async () => {
     const p = prompt('Nuevo PVP (€)', o.pvp);
     if (p === null) return;
@@ -365,7 +366,7 @@ function viewLabels() {
   const cand = data.items.filter(o => o.stock > 0);
   $('#view').innerHTML = `
     <div class="panel">
-      <div class="row"><label>Ancho de cada cara (mm)<input id="lw" type="number" value="28"></label><label>Alto (mm)<input id="lh" type="number" value="18"></label></div>
+      <div class="row"><label>Ancho de cada cara (mm)<input id="lw" type="number" value="22"></label><label>Alto (mm)<input id="lh" type="number" value="22"></label></div>
       <p class="mute" style="margin:4px 0">Cada etiqueta son dos caras lado a lado. Izquierda = delante (nombre, set y PVP); derecha = detrás (solo el QR). Dobla por la línea discontinua vertical sobre el borde lateral de la carta o funda.</p>
       <div class="row"><button id="all">Marcar todas</button><button id="none">Ninguna</button><button class="p" id="go">Imprimir seleccionadas</button></div>
       <p class="mute" style="margin:4px 0">En el diálogo de impresión desactiva márgenes/encabezados y usa escala 100 %. Prueba antes en papel normal.</p>
@@ -377,7 +378,7 @@ function viewLabels() {
   $('#go').onclick = () => {
     const ids = ck().filter(c => c.checked).map(c => c.value);
     if (!ids.length) return toast('Selecciona alguna');
-    printLabels(data.items.filter(o => ids.includes(o.id)), Number($('#lw').value) || 28, Number($('#lh').value) || 18);
+    printLabels(data.items.filter(o => ids.includes(o.id)), Number($('#lw').value) || 22, Number($('#lh').value) || 22);
   };
 }
 
@@ -393,7 +394,7 @@ const setName = (c, idioma) => {
 function printLabels(list, w, h) {
   // Etiqueta que abraza el lateral: dos caras lado a lado (w x h cada una) con doblez vertical.
   // Izquierda = DELANTE (nombre, set, PVP). Derecha = DETRÁS (solo QR).
-  const qs = Math.min(h - 3, w - 3);
+  const qs = Math.min(h, w) - 1;
   const pvp = o => (o.pvp === '' || o.pvp == null) ? '' : (Number(o.pvp) % 1 ? Number(o.pvp).toFixed(2) : Number(o.pvp)) + ' €';
   $('#print').innerHTML = list.map(o => `
     <div class="wrap" style="width:${2 * w}mm;height:${h}mm">
