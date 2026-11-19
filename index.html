@@ -41,12 +41,12 @@
     body > *:not(#print) { display:none !important; }
     #print { display:flex; flex-wrap:wrap; gap:0; }
     .wrap { display:flex; flex-direction:row; page-break-inside:avoid; break-inside:avoid; color:#000; background:#fff; font-family:system-ui,sans-serif; margin:0 2mm 2mm 0; box-sizing:border-box; outline:0.1mm solid #bbb; }
-    .wrap .face { display:flex; box-sizing:border-box; overflow:hidden; padding:1mm 1.2mm; }
+    .wrap .face { display:flex; box-sizing:border-box; overflow:hidden; padding:0.7mm 1.2mm; }
     .wrap .back { padding:0; }
     .wrap .front { flex-direction:column; justify-content:space-between; }
-    .wrap .front b { display:block; font-size:calc(8.5pt * var(--k, 1)); line-height:1.1; max-height:2.2em; overflow:hidden; }
-    .wrap .front span { display:block; font-size:calc(6.5pt * var(--k, 1)); line-height:1.15; max-height:3.5em; overflow:hidden; margin-top:0.4mm; }
-    .wrap .front .p { font-size:calc(12.5pt * var(--k, 1)); font-weight:800; text-align:right; line-height:1; }
+    .wrap .front b { display:block; font-size:calc(8.5pt * var(--k, 1)); line-height:1.05; max-height:2.1em; overflow:hidden; }
+    .wrap .front span { display:block; font-size:calc(6.5pt * var(--k, 1)); line-height:1.08; max-height:3.3em; overflow:hidden; margin-top:0.4mm; }
+    .wrap .front .p { font-size:calc(12.5pt * var(--k, 1)); font-weight:800; text-align:right; line-height:0.95; }
     .wrap .back { align-items:center; justify-content:center; border-left:0.2mm dashed #888; }
     .wrap .back svg { flex:none; }
     .wrap .back .t { flex:1; min-width:0; font-size:5.5pt; line-height:1.15; font-weight:700; word-break:break-all; }
